@@ -1,0 +1,9 @@
+{
+  "model_name": "impact_classifier",
+  "version": "v2_improved",
+  "created_at": "2026-02-02T11:28:35.958749",
+  "trained_at": null,
+  "training_samples": null,
+  "features_count": null,
+  "cv_splits": null
+}
