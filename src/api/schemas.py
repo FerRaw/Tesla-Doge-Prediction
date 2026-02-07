@@ -1,172 +1,136 @@
 """
-Pydantic schemas para requests y responses de la API
+Pydantic Schemas para la API
+
+Define los modelos de request/response
 """
+
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, List
+from typing import List, Dict, Optional
 from datetime import datetime
 
 
-# =============================================================================
-# REQUEST MODELS
-# =============================================================================
-
-class MarketFeatures(BaseModel):
-    """Features de mercado para predicción"""
-    
-    # DOGE features
-    doge_ret_1h: Optional[float] = Field(None, description="Retorno 1h DOGE")
-    doge_vol_zscore: Optional[float] = Field(None, description="Z-score volatilidad DOGE")
-    doge_buy_pressure: Optional[float] = Field(None, description="Presión compradora DOGE")
-    doge_rsi: Optional[float] = Field(None, description="RSI DOGE")
-    
-    # TSLA features
-    tsla_ret_1h: Optional[float] = Field(None, description="Retorno 1h TSLA")
-    tsla_market_open: Optional[int] = Field(None, description="Mercado abierto (1/0)")
-    tsla_vol_zscore: Optional[float] = Field(None, description="Z-score volatilidad TSLA")
-    
-    # Sentiment features
-    sentiment_ensemble: Optional[float] = Field(None, description="Sentimiento ensemble [-1, 1]")
-    relevance_score: Optional[float] = Field(None, description="Score de relevancia [0, 100]")
-    
-    # Sentiment lags
-    sentiment_ensemble_lag1: Optional[float] = Field(None, description="Sentimiento lag 1h")
-    sentiment_ensemble_lag2: Optional[float] = Field(None, description="Sentimiento lag 2h")
-    sentiment_ensemble_lag3: Optional[float] = Field(None, description="Sentimiento lag 3h")
-    relevance_score_lag1: Optional[float] = Field(None, description="Relevancia lag 1h")
-    relevance_score_lag2: Optional[float] = Field(None, description="Relevancia lag 2h")
-    relevance_score_lag3: Optional[float] = Field(None, description="Relevancia lag 3h")
-    
-    # Temporal features
-    hour_sin: float = Field(..., description="Hora (sin)")
-    hour_cos: float = Field(..., description="Hora (cos)")
-    day_sin: float = Field(..., description="Día semana (sin)")
-    day_cos: float = Field(..., description="Día semana (cos)")
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "doge_ret_1h": 0.015,
-                "doge_vol_zscore": 1.2,
-                "doge_buy_pressure": 0.62,
-                "doge_rsi": 58.3,
-                "tsla_ret_1h": 0.008,
-                "tsla_market_open": 1,
-                "tsla_vol_zscore": 0.5,
-                "sentiment_ensemble": 0.75,
-                "relevance_score": 85.0,
-                "sentiment_ensemble_lag1": 0.70,
-                "sentiment_ensemble_lag2": 0.65,
-                "sentiment_ensemble_lag3": 0.60,
-                "hour_sin": 0.5,
-                "hour_cos": 0.866,
-                "day_sin": 0.0,
-                "day_cos": 1.0
-            }
-        }
-
+# =================================================================
+# REQUEST SCHEMAS
+# =================================================================
 
 class PredictionRequest(BaseModel):
-    """Request para predicción única"""
-    features: MarketFeatures
-    model_type: str = Field(
-        "ensemble",
-        description="Tipo de modelo: ensemble, xgboost, lightgbm, lstm, elastic_net"
-    )
+    """Request para hacer predicciones"""
+    asset: str = Field(..., description="DOGE o TSLA")
+    model_name: str = Field(default="stacking", description="xgboost, lightgbm, catboost, stacking")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "asset": "DOGE",
+                "model_name": "stacking"
+            }
+        }
 
 
-class BatchPredictionRequest(BaseModel):
-    """Request para predicción batch"""
-    features_list: List[MarketFeatures]
-    model_type: str = Field("ensemble", description="Tipo de modelo")
+class BacktestingRequest(BaseModel):
+    """Request para backtesting personalizado"""
+    asset: str = Field(..., description="DOGE o TSLA")
+    threshold: float = Field(default=0.0025, description="Umbral mínimo para operar")
+    max_position_size: float = Field(default=0.75, description="Tamaño máximo de posición (0-1)")
+    transaction_cost: float = Field(default=0.001, description="Costo de transacción")
+    initial_capital: float = Field(default=10000, description="Capital inicial")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "asset": "DOGE",
+                "threshold": 0.0025,
+                "max_position_size": 0.75,
+                "transaction_cost": 0.001,
+                "initial_capital": 10000
+            }
+        }
 
 
-# =============================================================================
-# RESPONSE MODELS
-# =============================================================================
+# =================================================================
+# RESPONSE SCHEMAS
+# =================================================================
 
 class PredictionResponse(BaseModel):
-    """Respuesta de predicción genérica"""
-    predicted_return: float = Field(..., description="Retorno predicho")
-    prediction_timestamp: str
-    model_used: str
-    confidence_interval: Optional[Dict[str, float]] = None
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "predicted_return": 0.0234,
-                "prediction_timestamp": "2026-01-17T10:30:00",
-                "model_used": "ensemble",
-                "confidence_interval": {
-                    "lower": 0.015,
-                    "upper": 0.032
-                }
-            }
-        }
-
-
-class DogePredictionResponse(PredictionResponse):
-    """Respuesta específica para DOGE"""
-    asset: str = "DOGE"
-
-
-class TslaPredictionResponse(PredictionResponse):
-    """Respuesta específica para TSLA"""
-    asset: str = "TSLA"
-
-
-class ImpactPredictionResponse(BaseModel):
-    """Respuesta de clasificación de impacto"""
-    impact_class: int = Field(..., description="0: Sin impacto, 1: DOGE, 2: TSLA, 3: Ambos")
-    impact_label: str
-    probabilities: Dict[str, float]
-    prediction_timestamp: str
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "impact_class": 1,
-                "impact_label": "Impacto en DOGE",
-                "probabilities": {
-                    "no_impact": 0.15,
-                    "doge_impact": 0.68,
-                    "tsla_impact": 0.10,
-                    "both_impact": 0.07
-                },
-                "prediction_timestamp": "2026-01-17T10:30:00"
-            }
-        }
-
-
-class BatchPredictionResponse(BaseModel):
-    """Respuesta de predicción batch"""
+    """Response con predicción"""
     asset: str
-    predictions: List[float]
-    count: int
-    model_used: str
-    timestamp: str
+    model_name: str
+    prediction: float
+    timestamp: datetime
+    confidence: Optional[float] = None
+
+
+class ModelMetrics(BaseModel):
+    """Métricas de un modelo"""
+    model_name: str
+    rmse: float
+    mae: float
+    r2: float
+    directional_accuracy: float
+    correlation: float
+
+
+class BacktestingMetrics(BaseModel):
+    """Métricas de backtesting"""
+    initial_capital: float
+    final_capital: float
+    total_return_pct: float
+    n_trades: int
+    n_wins: int
+    n_losses: int
+    win_rate: float
+    avg_win: float
+    avg_loss: float
+    profit_factor: float
+    sharpe_ratio: float
+    sortino_ratio: float
+    max_drawdown_pct: float
+
+
+class BacktestingResponse(BaseModel):
+    """Response de backtesting"""
+    asset: str
+    strategy: str
+    metrics: BacktestingMetrics
+
+
+class ChartResponse(BaseModel):
+    """Response con gráfico en base64"""
+    chart_type: str
+    asset: Optional[str] = None
+    image_base64: str
 
 
 class HealthResponse(BaseModel):
-    """Respuesta de health check"""
+    """Response de health check"""
     status: str
-    models_loaded: Dict[str, bool]
-    timestamp: str
-
-
-class ModelInfoResponse(BaseModel):
-    """Información de un modelo"""
-    model_name: str
     version: str
-    is_trained: bool
-    models_available: List[str]
-    metrics: Dict
-    ensemble_weights: Optional[Dict[str, float]] = None
-    feature_names: Optional[List[str]] = None
+    models_loaded: Dict[str, bool]
+    timestamp: datetime
 
 
-class ModelsInfoResponse(BaseModel):
-    """Información de todos los modelos"""
-    doge: Optional[ModelInfoResponse] = None
-    tsla: Optional[ModelInfoResponse] = None
-    impact: Optional[ModelInfoResponse] = None
+class ErrorResponse(BaseModel):
+    """Response de error"""
+    error: str
+    detail: Optional[str] = None
+    timestamp: datetime
+
+
+# =================================================================
+# INFO SCHEMAS
+# =================================================================
+
+class EndpointInfo(BaseModel):
+    """Información de un endpoint"""
+    path: str
+    method: str
+    description: str
+    parameters: Optional[List[str]] = None
+    example: Optional[Dict] = None
+
+
+class APIHelp(BaseModel):
+    """Documentación completa de la API"""
+    version: str
+    description: str
+    endpoints: List[EndpointInfo]

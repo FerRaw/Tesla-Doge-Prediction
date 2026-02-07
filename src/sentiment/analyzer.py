@@ -12,6 +12,93 @@ class SentimentAnalyzer:
     
     def __init__(self):
         self.vader = SentimentIntensityAnalyzer()
+        
+        # Keywords (hardcoded para predicción en tiempo real)
+        self.tesla_keywords = ['tesla', 'tsla', 'model', 'car', 'vehicle', 'electric', 'battery', 'autopilot', 'fsd', 'production', 'delivery', 'gigafactory', 'cybertruck', 'roadster', 'supercharger', 'model s', 'model 3', 'model x', 'model y', 'spacex']
+        self.doge_keywords = ['doge', 'dogecoin', 'shiba', 'crypto', 'cryptocurrency', 'bitcoin', 'btc', 'coin', 'blockchain', 'hodl', 'moon', 'shib', 'dogefather']
+        self.positive_keywords = ['great', 'altcoin', 'memecoin', 'amazing', 'awesome', 'love', 'best', 'excited', 'pump', 'bullish', 'moon', 'rocket', '🚀', '📈']
+        self.negative_keywords = ['bad', 'worst', 'hate', 'terrible', 'crash', 'dump', 'bearish', 'scam', 'fraud', 'shitcoin    ']
+    
+    def analyze_tweet(self, text: str) -> Dict:
+        """
+        Analiza un ÚNICO tweet (para predicción en tiempo real)
+        
+        Args:
+            text: Texto del tweet
+            
+        Returns:
+            Dict con 'ensemble', 'relevance', 'textblob', 'vader', etc.
+        """
+        text_lower = text.lower()
+        
+        # Menciones
+        mentions_tesla = any(kw in text_lower for kw in self.tesla_keywords)
+        mentions_doge = any(kw in text_lower for kw in self.doge_keywords)
+        mentions_any = mentions_tesla or mentions_doge
+        
+        # Conteo de palabras
+        positive_count = sum(1 for kw in self.positive_keywords if kw in text_lower)
+        negative_count = sum(1 for kw in self.negative_keywords if kw in text_lower)
+        
+        # 1. TextBlob
+        blob = TextBlob(text)
+        sentiment_textblob = blob.sentiment.polarity
+        subjectivity = blob.sentiment.subjectivity
+        
+        # 2. VADER
+        sentiment_vader = self.vader.polarity_scores(text)['compound']
+        
+        # 3. Léxico
+        if positive_count + negative_count == 0:
+            sentiment_lexicon = 0.0
+        else:
+            sentiment_lexicon = (positive_count - negative_count) / (positive_count + negative_count)
+        
+        # 4. Weighted
+        base = (sentiment_textblob + sentiment_lexicon) / 2
+        if mentions_any:
+            boost = (positive_count - negative_count) * 0.1
+            sentiment_weighted = np.clip(base + boost, -1, 1)
+        else:
+            sentiment_weighted = base
+        
+        # 5. Ensemble final
+        sentiment_ensemble = (
+            sentiment_textblob * 0.15 +
+            sentiment_lexicon * 0.25 +
+            sentiment_vader * 0.35 +
+            sentiment_weighted * 0.25
+        )
+        
+        # Confianza
+        sentiments = [sentiment_textblob, sentiment_lexicon, sentiment_weighted, sentiment_vader]
+        sentiment_std = np.std(sentiments)
+        confidence_score = 1 - np.clip(sentiment_std / 0.5, 0, 1)
+        
+        # Relevancia (simplificada sin score_log)
+        sentiment_intensity = abs(sentiment_ensemble)
+        relevance_raw = (
+            (int(mentions_any) * 45) +
+            (sentiment_intensity * 30) +
+            (confidence_score * 25)
+        )
+        
+        # Normalizar a 0-1
+        relevance = relevance_raw / 100.0
+        
+        return {
+            'ensemble': float(sentiment_ensemble),
+            'relevance': float(relevance),
+            'textblob': float(sentiment_textblob),
+            'vader': float(sentiment_vader),
+            'lexicon': float(sentiment_lexicon),
+            'weighted': float(sentiment_weighted),
+            'confidence': float(confidence_score),
+            'mentions_tesla': mentions_tesla,
+            'mentions_doge': mentions_doge,
+            'positive_count': positive_count,
+            'negative_count': negative_count
+        }
     
     def analyze(self, df_clean: pd.DataFrame, keywords_dict: Dict) -> pd.DataFrame:
         """

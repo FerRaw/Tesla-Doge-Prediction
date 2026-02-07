@@ -1,0 +1,23 @@
+{
+  "model_name": "impact_classifier_final",
+  "version": "final",
+  "created_at": "2026-02-04T20:46:29.717598",
+  "trained_at": null,
+  "training_samples": null,
+  "features_count": null,
+  "cv_splits": null,
+  "metrics_summary": {
+    "random_forest": {
+      "accuracy": 0.8759044862518091,
+      "std": 0.05020320773379789
+    },
+    "xgboost": {
+      "accuracy": 0.8703328509406658,
+      "std": 0.05109153261368734
+    },
+    "lightgbm": {
+      "accuracy": 0.869464544138929,
+      "std": 0.05254740992467311
+    }
+  }
+}

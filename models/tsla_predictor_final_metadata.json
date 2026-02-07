@@ -1,0 +1,35 @@
+{
+  "model_name": "tsla_predictor_final",
+  "version": "final",
+  "created_at": "2026-02-04T20:43:12.811027",
+  "trained_at": null,
+  "training_samples": null,
+  "features_count": null,
+  "cv_splits": null,
+  "metrics_summary": {
+    "xgboost": {
+      "cv_rmse_mean": 0.008626698272873563,
+      "cv_rmse_std": 0.0009983965667396172,
+      "cv_rmse_min": 0.00710415821780892,
+      "cv_rmse_max": 0.009920559479637705
+    },
+    "lightgbm": {
+      "cv_rmse_mean": 0.008398142453259538,
+      "cv_rmse_std": 0.0009648864460263634,
+      "cv_rmse_min": 0.006840999357497726,
+      "cv_rmse_max": 0.00930497459153644
+    },
+    "catboost": {
+      "cv_rmse_mean": 0.008344397537320919,
+      "cv_rmse_std": 0.0009392201968851609,
+      "cv_rmse_min": 0.00683895944034141,
+      "cv_rmse_max": 0.009302693378975404
+    },
+    "stacking": {
+      "cv_rmse_mean": 0.008680829934587915,
+      "cv_rmse_std": 0.0010270593178067855,
+      "cv_rmse_min": 0.006936214607308969,
+      "cv_rmse_max": 0.009725860382317958
+    }
+  }
+}

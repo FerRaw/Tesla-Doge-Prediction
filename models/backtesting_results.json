@@ -1,0 +1,96 @@
+{
+  "DOGE": {
+    "conservative": {
+      "initial_capital": 10000,
+      "final_capital": 6548.5802134453525,
+      "total_return_pct": -34.51419786554648,
+      "n_trades": 662,
+      "n_wins": 520,
+      "n_losses": 1021,
+      "win_rate": 0.7854984894259819,
+      "avg_win": 53.153464812666535,
+      "avg_loss": 30.45173505302766,
+      "profit_factor": 0.8889905374814537,
+      "sharpe_ratio": -1.8325565088267182,
+      "sortino_ratio": -1.6353200265482142,
+      "max_drawdown_pct": -41.75998858532135
+    },
+    "moderate": {
+      "initial_capital": 10000,
+      "final_capital": 1961.8248009666602,
+      "total_return_pct": -80.3817519903334,
+      "n_trades": 1142,
+      "n_wins": 963,
+      "n_losses": 1759,
+      "win_rate": 0.8432574430823118,
+      "avg_win": 46.23093013119442,
+      "avg_loss": 29.879795858654724,
+      "profit_factor": 0.8470624945006395,
+      "sharpe_ratio": -3.806148931358858,
+      "sortino_ratio": -4.5184584795876015,
+      "max_drawdown_pct": -83.1188315767224
+    },
+    "aggressive": {
+      "initial_capital": 10000,
+      "final_capital": 366.2525162315924,
+      "total_return_pct": -96.33747483768408,
+      "n_trades": 1550,
+      "n_wins": 1521,
+      "n_losses": 2333,
+      "win_rate": 0.9812903225806452,
+      "avg_win": 34.82614395412586,
+      "avg_loss": 26.83425308100885,
+      "profit_factor": 0.8461168710492596,
+      "sharpe_ratio": -5.136405353784805,
+      "sortino_ratio": -6.990559132451639,
+      "max_drawdown_pct": -96.79889379105036
+    }
+  },
+  "TSLA": {
+    "conservative": {
+      "initial_capital": 10000,
+      "final_capital": 7729.45838408505,
+      "total_return_pct": -22.7054161591495,
+      "n_trades": 452,
+      "n_wins": 338,
+      "n_losses": 690,
+      "win_rate": 0.7477876106194691,
+      "avg_win": 49.85261892467472,
+      "avg_loss": 27.71119827892026,
+      "profit_factor": 0.8812523374145002,
+      "sharpe_ratio": -1.3746647904791829,
+      "sortino_ratio": -0.9916421465723751,
+      "max_drawdown_pct": -26.833500368035295
+    },
+    "moderate": {
+      "initial_capital": 10000,
+      "final_capital": 3567.5686472269545,
+      "total_return_pct": -64.32431352773045,
+      "n_trades": 855,
+      "n_wins": 673,
+      "n_losses": 1354,
+      "win_rate": 0.7871345029239766,
+      "avg_win": 46.31320284685182,
+      "avg_loss": 27.770470360933732,
+      "profit_factor": 0.8289302344859284,
+      "sharpe_ratio": -3.1811245525965313,
+      "sortino_ratio": -3.2293167192140992,
+      "max_drawdown_pct": -67.62105814201529
+    },
+    "aggressive": {
+      "initial_capital": 10000,
+      "final_capital": 724.5459848851576,
+      "total_return_pct": -92.75454015114843,
+      "n_trades": 1220,
+      "n_wins": 1071,
+      "n_losses": 1978,
+      "win_rate": 0.8778688524590164,
+      "avg_win": 35.609578763330255,
+      "avg_loss": 23.97033006604733,
+      "profit_factor": 0.8043702611454031,
+      "sharpe_ratio": -5.465712003983405,
+      "sortino_ratio": -6.46540414514834,
+      "max_drawdown_pct": -93.55317945369666
+    }
+  }
+}

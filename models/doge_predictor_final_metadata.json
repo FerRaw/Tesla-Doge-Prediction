@@ -1,0 +1,35 @@
+{
+  "model_name": "doge_predictor_final",
+  "version": "final",
+  "created_at": "2026-02-04T20:38:57.526106",
+  "trained_at": null,
+  "training_samples": null,
+  "features_count": null,
+  "cv_splits": null,
+  "metrics_summary": {
+    "xgboost": {
+      "cv_rmse_mean": 0.015139286790943613,
+      "cv_rmse_std": 0.0054285438668266635,
+      "cv_rmse_min": 0.010809983996254506,
+      "cv_rmse_max": 0.025587423005435532
+    },
+    "lightgbm": {
+      "cv_rmse_mean": 0.014750812071336532,
+      "cv_rmse_std": 0.005567835955150557,
+      "cv_rmse_min": 0.010513456768311268,
+      "cv_rmse_max": 0.025558099577982784
+    },
+    "catboost": {
+      "cv_rmse_mean": 0.014740924297900465,
+      "cv_rmse_std": 0.005550026789784855,
+      "cv_rmse_min": 0.01051222888326298,
+      "cv_rmse_max": 0.025511063492961363
+    },
+    "stacking": {
+      "cv_rmse_mean": 0.015649585321677942,
+      "cv_rmse_std": 0.006309170031156119,
+      "cv_rmse_min": 0.010686899942817225,
+      "cv_rmse_max": 0.027977764285687302
+    }
+  }
+}

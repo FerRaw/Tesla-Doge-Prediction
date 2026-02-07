@@ -146,7 +146,7 @@ class TwitterPreprocessor:
         
         print(f"✅ Tweets procesados: {len(df_clean):,} horas con actividad")
         print(f"   Rango: {df_clean.index.min()} a {df_clean.index.max()}")
-        
+        print(df_clean.head())
         return df_clean
 
 
