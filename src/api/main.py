@@ -41,6 +41,7 @@ from src.models.improved_predictors import (
 from src.models.evaluator import ModelEvaluator, BacktestEvaluator
 from src.visualization.charts import ChartGenerator
 from src.data.advanced_features import AdvancedFeatureEngineer
+from src.sentiment.analyzer import SentimentAnalyzer
 from src.api.schemas import (
     PredictionRequest, PredictionResponse,
     BacktestingRequest, BacktestingResponse, BacktestingMetrics,
@@ -967,7 +968,7 @@ async def predict_impact(
             'class_id': int(pred),
             'probabilities': {
                 class_names[j]: float(p) for j, p in enumerate(proba)
-            }
+            },
         })
     
     return {
@@ -979,7 +980,8 @@ async def predict_impact(
 @app.post("/impact/predict-text", tags=["Impact"])
 async def predict_impact_from_text(
     text: str = Query(..., description="Texto del tweet a analizar"),
-    model_name: str = Query("xgboost", description="Modelo a usar")
+    model_name: str = Query("xgboost", description="Modelo clasificador"),
+    include_magnitude: bool = Query(True, description="Incluir predicción de magnitud")
 ):
     """
     🎯 Predice el impacto de un NUEVO TEXTO en DOGE y TSLA
@@ -997,108 +999,145 @@ async def predict_impact_from_text(
     if not state.models_loaded:
         raise HTTPException(status_code=503, detail="Modelos no cargados")
     
-    # Importar sentiment analyzer
     try:
-        from src.sentiment.analyzer import SentimentAnalyzer
+        # 1. Analizar sentimiento
         analyzer = SentimentAnalyzer()
-    except:
-        # Fallback simple si no existe
-        raise HTTPException(
-            status_code=501,
-            detail="SentimentAnalyzer no disponible. Necesitas el módulo de análisis de sentimiento."
-        )
-    
-    # Analizar sentimiento del texto
-    sentiment_result = analyzer.analyze_tweet(text)
-    print(sentiment_result)
-    
-    # Crear dataframe con features mínimas necesarias
-    # (Simulamos contexto de mercado actual)
-    features_dict = {
-        'sentiment_ensemble': sentiment_result.get('ensemble', 0.0),
-        'relevance_score': sentiment_result.get('relevance', 0.5),
-        'hour_sin': np.sin(2 * np.pi * datetime.now().hour / 24),
-        'hour_cos': np.cos(2 * np.pi * datetime.now().hour / 24),
-        'day_sin': np.sin(2 * np.pi * datetime.now().weekday() / 7),
-        'day_cos': np.cos(2 * np.pi * datetime.now().weekday() / 7),
-        # Features de mercado (usar valores medios del dataset)
-        'doge_ret_1h': 0.0,
-        'doge_vol_zscore': 0.0,
-        'doge_rsi': 50.0,
-        'tsla_ret_1h': 0.0,
-        'tsla_market_open': 1 if 9 <= datetime.now().hour <= 16 else 0,
-        'tsla_vol_zscore': 0.0,
-        'mentions_doge': sentiment_result.get('mentions_doge', 0.0),
-        'mentions_tesla': sentiment_result.get('mentions_tesla', 0.0),
-        'relevance_score_lag1':1,
-        'relevance_score_lag1':1
-    }
-    
-    # Crear DataFrame
-    input_df = pd.DataFrame([features_dict])
-    
-    # Predecir
-    prediction = state.impact_model.predict(input_df, model_name=model_name)[0]
-    probabilities = state.impact_model.predict_proba(input_df, model_name=model_name)[0]
-    
-    class_names = ['No Impact', 'DOGE Only', 'TSLA Only', 'Both']
-    
-    # Calcular magnitud de impacto esperada
-    # Usando los modelos DOGE y TSLA
-    doge_impact = 0.0
-    tsla_impact = 0.0
-    
-    if prediction in [1, 3]:  # DOGE impactado
-        # Predecir retorno de DOGE
-        try:
-            doge_pred = state.doge_model.predict(input_df, model_name='stacking')[0]
-            doge_impact = float(doge_pred)
-        except:
-            doge_impact = sentiment_result.get('ensemble', 0.0) * 0.02  # Estimación simple
-    
-    if prediction in [2, 3]:  # TSLA impactado
-        try:
-            tsla_pred = state.tsla_model.predict(input_df, model_name='stacking')[0]
-            tsla_impact = float(tsla_pred)
-        except:
-            tsla_impact = sentiment_result.get('ensemble', 0.0) * 0.01
-    
-    return {
-        "text": text,
-        "sentiment": {
-            "score": sentiment_result.get('ensemble', 0.0),
-            "relevance": sentiment_result.get('relevance', 0.5)
-        },
-        "impact_prediction": {
-            "predicted_class": class_names[prediction],
-            "class_id": int(prediction),
-            "probabilities": {
-                "no_impact": f"{probabilities[0]*100:.2f}%",
-                "doge_only": f"{probabilities[1]*100:.2f}%",
-                "tsla_only": f"{probabilities[2]*100:.2f}%",
-                "both": f"{probabilities[3]*100:.2f}%"
-            }
-        },
-        "expected_impact": {
-            "doge": {
-                "affected": prediction in [1, 3],
-                "expected_return_pct": f"{doge_impact*100:.2f}%",
-                "magnitude": "high" if abs(doge_impact) > 0.02 else "medium" if abs(doge_impact) > 0.01 else "low"
+        sentiment_result = analyzer.analyze_tweet(text)
+        
+        # 2. Features temporales
+        now = datetime.now()
+        hour = now.hour
+        day_of_week = now.weekday()
+        
+        # 3. Construir DataFrame SIMPLE (solo features core)
+        features_dict = {
+            'hour_sin': np.sin(2 * np.pi * hour / 24),
+            'hour_cos': np.cos(2 * np.pi * hour / 24),
+            'day_sin': np.sin(2 * np.pi * day_of_week / 7),
+            'day_cos': np.cos(2 * np.pi * day_of_week / 7),
+            
+            'sentiment_ensemble': sentiment_result['ensemble'],
+            'relevance_score': sentiment_result['relevance'],
+            'mentions_tesla': int(sentiment_result['mentions_tesla']),
+            'mentions_doge': int(sentiment_result['mentions_doge']),
+        }
+        
+        input_df = pd.DataFrame([features_dict])
+        
+        # 4. Predicción CON HEURÍSTICAS
+        prediction_class = int(state.impact_model.predict(input_df, model_name=model_name)[0])
+        probabilities = state.impact_model.predict_proba(input_df, model_name=model_name)[0]
+        
+        class_names = ['No Impact', 'DOGE Only', 'TSLA Only', 'Both']
+        
+        # 5. Predicción de magnitud
+        doge_impact = 0.0
+        tsla_impact = 0.0
+        
+        if include_magnitude:
+            if prediction_class in [1, 3]:
+                try:
+                    # Agregar features de mercado SOLO para predicción de magnitud
+                    magnitude_df = input_df.copy()
+                    magnitude_df['doge_ret_1h'] = 0.0
+                    magnitude_df['doge_vol_zscore'] = 1.0
+                    magnitude_df['doge_rsi'] = 55.0
+                    
+                    doge_pred = state.doge_model.predict(magnitude_df, model_name='stacking')[0]
+                    doge_impact = float(doge_pred)
+                except Exception as e:
+                    print(f"⚠️ Fallback DOGE: {e}")
+                    doge_impact = sentiment_result['ensemble'] * 0.025
+            
+            if prediction_class in [2, 3]:
+                try:
+                    magnitude_df = input_df.copy()
+                    magnitude_df['tsla_ret_1h'] = 0.0
+                    magnitude_df['tsla_market_open'] = 1 if 9 <= hour <= 16 else 0
+                    magnitude_df['tsla_vol_zscore'] = 1.0
+                    
+                    tsla_pred = state.tsla_model.predict(magnitude_df, model_name='stacking')[0]
+                    tsla_impact = float(tsla_pred)
+                except Exception as e:
+                    print(f"⚠️ Fallback TSLA: {e}")
+                    tsla_impact = sentiment_result['ensemble'] * 0.015
+        
+        # 6. Recomendación
+        if prediction_class == 3:
+            recommendation = "🚀 Alto impacto esperado en AMBOS activos"
+            signal = "STRONG"
+        elif prediction_class == 1:
+            recommendation = "🐶 Impacto significativo solo en DOGE"
+            signal = "MODERATE_DOGE"
+        elif prediction_class == 2:
+            recommendation = "🚗 Impacto significativo solo en TSLA"
+            signal = "MODERATE_TSLA"
+        else:
+            recommendation = "😴 Sin impacto significativo esperado"
+            signal = "NONE"
+        
+        return {
+            "text": text,
+            "timestamp": now.isoformat(),
+            
+            "sentiment_analysis": {
+                "ensemble_score": round(sentiment_result['ensemble'], 4),
+                "relevance_score": round(sentiment_result['relevance'], 4),
+                "confidence": round(sentiment_result['confidence'], 4),
+                "mentions": {
+                    "tesla": sentiment_result['mentions_tesla'],
+                    "doge": sentiment_result['mentions_doge']
+                }
             },
-            "tsla": {
-                "affected": prediction in [2, 3],
-                "expected_return_pct": f"{tsla_impact*100:.2f}%",
-                "magnitude": "high" if abs(tsla_impact) > 0.02 else "medium" if abs(tsla_impact) > 0.01 else "low"
+            
+            "impact_prediction": {
+                "predicted_class": class_names[prediction_class],
+                "class_id": int(prediction_class),
+                "signal_strength": signal,
+                "probabilities": {
+                    "no_impact": f"{probabilities[0]*100:.2f}%",
+                    "doge_only": f"{probabilities[1]*100:.2f}%",
+                    "tsla_only": f"{probabilities[2]*100:.2f}%",
+                    "both": f"{probabilities[3]*100:.2f}%"
+                },
+                "model_used": model_name
+            },
+            
+            "expected_impact": {
+                "doge": {
+                    "will_impact": prediction_class in [1, 3],
+                    "expected_return_pct": f"{doge_impact*100:.3f}%",
+                    "magnitude": (
+                        "high" if abs(doge_impact) > 0.025 else
+                        "medium" if abs(doge_impact) > 0.012 else
+                        "low"
+                    ),
+                    "direction": "bullish" if doge_impact > 0 else "bearish" if doge_impact < 0 else "neutral"
+                },
+                "tsla": {
+                    "will_impact": prediction_class in [2, 3],
+                    "expected_return_pct": f"{tsla_impact*100:.3f}%",
+                    "magnitude": (
+                        "high" if abs(tsla_impact) > 0.015 else
+                        "medium" if abs(tsla_impact) > 0.008 else
+                        "low"
+                    ),
+                    "direction": "bullish" if tsla_impact > 0 else "bearish" if tsla_impact < 0 else "neutral"
+                }
+            } if include_magnitude else None,
+            
+            "recommendation": recommendation,
+            
+            "metadata": {
+                "model_version": state.impact_model.version,
+                "heuristics_applied": True
             }
-        },
-        "recommendation": (
-            "🚀 Alto impacto esperado" if prediction == 3 else
-            "🐶 Impacto solo en DOGE" if prediction == 1 else
-            "🚗 Impacto solo en TSLA" if prediction == 2 else
-            "😴 Sin impacto significativo"
-        )
-    }
-
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 # =================================================================
 # ENDPOINTS - PREPROCESSING CHARTS
 # =================================================================

@@ -28,53 +28,138 @@ class ModelEvaluator:
     
     def __init__(self):
         self.results = {}
-    
+        self.regression_results = {}
+        self.classification_results = {}
     def evaluate_regression(
         self,
         y_true: np.ndarray,
         y_pred: np.ndarray,
-        model_name: str
+        model_name: str,
+        asset: str = None
     ) -> Dict:
         """
-        Evalúa un modelo de regresión
+        Evalúa un modelo de regresión con métricas completas
         
-        Returns métricas: RMSE, MAE, R², Directional Accuracy
+        Args:
+            y_true: Valores reales
+            y_pred: Predicciones
+            model_name: Nombre del modelo
+            asset: DOGE o TSLA (opcional)
+            
+        Returns:
+            Dict con todas las métricas
         """
+        # Asegurar que sean arrays 1D
+        y_true = np.array(y_true).ravel()
+        y_pred = np.array(y_pred).ravel()
+        
+        # Verificar longitud
+        if len(y_true) != len(y_pred):
+            min_len = min(len(y_true), len(y_pred))
+            print(f"⚠️ Warning: Ajustando longitudes ({len(y_true)} vs {len(y_pred)}) a {min_len}")
+            y_true = y_true[-min_len:]
+            y_pred = y_pred[-min_len:]
+        
         # Métricas básicas
         rmse = np.sqrt(mean_squared_error(y_true, y_pred))
         mae = mean_absolute_error(y_true, y_pred)
+        mse = mean_squared_error(y_true, y_pred)
+        
+        # R² score
         r2 = r2_score(y_true, y_pred)
         
-        # Directional accuracy
+        # Directional accuracy (trading-oriented)
         direction_true = np.sign(y_true)
         direction_pred = np.sign(y_pred)
         directional_accuracy = (direction_true == direction_pred).mean()
         
+        # Precisión direccional por clase (positiva vs negativa)
+        positive_mask = y_true > 0
+        negative_mask = y_true < 0
+        
+        directional_accuracy_positive = (
+            (direction_true[positive_mask] == direction_pred[positive_mask]).mean()
+            if positive_mask.sum() > 0 else 0.0
+        )
+        
+        directional_accuracy_negative = (
+            (direction_true[negative_mask] == direction_pred[negative_mask]).mean()
+            if negative_mask.sum() > 0 else 0.0
+        )
+        
         # Correlation
-        correlation = np.corrcoef(y_true, y_pred)[0, 1]
+        correlation = np.corrcoef(y_true, y_pred)[0, 1] if len(y_true) > 1 else 0.0
+        
+        # Métricas de error por magnitud
+        abs_errors = np.abs(y_true - y_pred)
+        mean_abs_error = np.mean(abs_errors)
+        median_abs_error = np.median(abs_errors)
+        max_abs_error = np.max(abs_errors)
+        
+        # Sharpe ratio simulado (asumiendo retornos)
+        if np.std(y_pred) > 0:
+            sharpe_ratio = np.mean(y_pred) / np.std(y_pred) * np.sqrt(252)  # Anualizado
+        else:
+            sharpe_ratio = 0.0
         
         results = {
             'model_name': model_name,
+            'asset': asset,
             'rmse': rmse,
             'mae': mae,
+            'mse': mse,
             'r2': r2,
             'directional_accuracy': directional_accuracy,
+            'directional_accuracy_positive': directional_accuracy_positive,
+            'directional_accuracy_negative': directional_accuracy_negative,
             'correlation': correlation,
-            'n_samples': len(y_true)
+            'mean_abs_error': mean_abs_error,
+            'median_abs_error': median_abs_error,
+            'max_abs_error': max_abs_error,
+            'sharpe_ratio': sharpe_ratio,
+            'n_samples': len(y_true),
+            'n_positive': positive_mask.sum(),
+            'n_negative': negative_mask.sum()
         }
         
-        self.results[model_name] = results
+        # Guardar resultados
+        key = f"{asset}_{model_name}" if asset else model_name
+        self.results[key] = results
+        self.regression_results[key] = results
+        
         return results
     
     def print_regression_results(self, results: Dict):
-        """Imprime resultados de regresión de forma legible"""
-        print(f"\n📊 EVALUACIÓN: {results['model_name']}")
+        """Imprime resultados de regresión de forma legible y completa"""
+        print(f"\n📊 EVALUACIÓN: {results['model_name']}", end="")
+        if results.get('asset'):
+            print(f" ({results['asset']})")
+        else:
+            print()
+        
         print("="*70)
-        print(f"   RMSE: {results['rmse']:.6f}")
-        print(f"   MAE: {results['mae']:.6f}")
-        print(f"   R²: {results['r2']:.4f}")
-        print(f"   Directional Accuracy: {results['directional_accuracy']*100:.2f}%")
-        print(f"   Correlation: {results['correlation']:.4f}")
+        
+        # Métricas principales
+        print(f"   📈 Métricas Principales:")
+        print(f"      RMSE: {results['rmse']:.6f}")
+        print(f"      MAE:  {results['mae']:.6f}")
+        print(f"      R²:   {results['r2']:.4f}")
+        
+        # Métricas direccionales
+        print(f"\n   🎯 Directional Accuracy:")
+        print(f"      Overall:  {results['directional_accuracy']*100:.2f}%")
+        print(f"      Positiva: {results['directional_accuracy_positive']*100:.2f}% (n={results['n_positive']})")
+        print(f"      Negativa: {results['directional_accuracy_negative']*100:.2f}% (n={results['n_negative']})")
+        
+        # Otras métricas
+        print(f"\n   📊 Otras Métricas:")
+        print(f"      Correlation:        {results['correlation']:.4f}")
+        print(f"      Mean Abs Error:     {results['mean_abs_error']:.6f}")
+        print(f"      Median Abs Error:   {results['median_abs_error']:.6f}")
+        print(f"      Max Abs Error:      {results['max_abs_error']:.6f}")
+        print(f"      Sharpe Ratio (sim): {results['sharpe_ratio']:.4f}")
+        
+        print(f"\n   📝 Muestras: {results['n_samples']}")
         print("="*70)
     
     def evaluate_classification(
@@ -170,55 +255,91 @@ class ModelEvaluator:
         print("="*70)
     
     def plot_confusion_matrix(self, results: Dict, save_path: str = None):
-        """Plotea matriz de confusión"""
+        """Plotea matriz de confusión con mejor visualización"""
         cm = results['confusion_matrix']
         class_names = results['class_names']
         
         plt.figure(figsize=(10, 8))
+        
+        # Normalizar por fila (true labels) para ver % de cada clase
+        cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        cm_normalized = np.nan_to_num(cm_normalized)  # Manejar divisiones por 0
+        
+        # Heatmap
         sns.heatmap(
-            cm, 
-            annot=True, 
-            fmt='d', 
+            cm_normalized,
+            annot=cm,  # Mostrar conteos absolutos
+            fmt='d',
             cmap='Blues',
             xticklabels=class_names,
-            yticklabels=class_names
+            yticklabels=class_names,
+            cbar_kws={'label': 'Proporción'}
         )
-        plt.title(f'Confusion Matrix - {results["model_name"]}')
+        
+        plt.title(f'Confusion Matrix - {results["model_name"]}\n(colores = %, números = conteos)')
         plt.ylabel('True Label')
         plt.xlabel('Predicted Label')
+        plt.tight_layout()
         
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"✅ Matriz de confusión guardada: {save_path}")
         
         plt.close()
     
-    def compare_models(self) -> pd.DataFrame:
-        """Compara todos los modelos evaluados"""
-        if not self.results:
+    def compare_models(self, metric: str = 'rmse') -> pd.DataFrame:
+        """
+        Compara todos los modelos de regresión evaluados
+        
+        Args:
+            metric: Métrica para ordenar ('rmse', 'r2', 'directional_accuracy')
+            
+        Returns:
+            DataFrame comparativo
+        """
+        if not self.regression_results:
+            print("⚠️ No hay modelos de regresión evaluados")
             return pd.DataFrame()
         
         comparison = []
-        for name, metrics in self.results.items():
+        for name, metrics in self.regression_results.items():
             comparison.append({
                 'model': name,
                 'rmse': metrics.get('rmse', np.nan),
                 'mae': metrics.get('mae', np.nan),
                 'r2': metrics.get('r2', np.nan),
-                'directional_accuracy': metrics.get('directional_accuracy', np.nan)
+                'dir_acc': metrics.get('directional_accuracy', np.nan),
+                'correlation': metrics.get('correlation', np.nan),
+                'sharpe': metrics.get('sharpe_ratio', np.nan)
             })
         
         df = pd.DataFrame(comparison)
-        df = df.sort_values('rmse')
+        
+        # Ordenar según métrica
+        if metric == 'rmse' or metric == 'mae':
+            df = df.sort_values(metric)
+        elif metric in ['r2', 'dir_acc', 'correlation', 'sharpe']:
+            df = df.sort_values(metric, ascending=False)
+        
         return df
     
     def get_best_model(self, metric: str = 'rmse', minimize: bool = True) -> str:
-        """Obtiene el mejor modelo según una métrica"""
-        if not self.results:
+        """
+        Obtiene el mejor modelo de regresión según una métrica
+        
+        Args:
+            metric: Métrica a usar
+            minimize: Si True, busca el menor valor; si False, el mayor
+            
+        Returns:
+            Nombre del mejor modelo
+        """
+        if not self.regression_results:
             return None
         
         valid_results = {
             name: metrics 
-            for name, metrics in self.results.items() 
+            for name, metrics in self.regression_results.items() 
             if metric in metrics and not np.isnan(metrics[metric])
         }
         
@@ -406,48 +527,63 @@ class BacktestEvaluator:
 def evaluate_model_complete(
     model,
     test_df: pd.DataFrame,
-    asset_name: str,
-    evaluator: ModelEvaluator
+    asset: str,
+    evaluator: ModelEvaluator,
+    models_to_evaluate: List[str] = None
 ):
     """
-    Evaluación completa de un modelo de regresión
+    Evalúa TODOS los modelos disponibles de un predictor
     
     Args:
-        model: Modelo entrenado (FinalDOGEPredictor o FinalTSLAPredictor)
+        model: Predictor (DOGE o TSLA)
         test_df: DataFrame de test
-        asset_name: 'DOGE' o 'TSLA'
+        asset: "DOGE" o "TSLA"
         evaluator: Instancia de ModelEvaluator
+        models_to_evaluate: Lista de modelos específicos (None = todos)
     """
     print(f"\n{'='*70}")
-    print(f"📊 EVALUANDO {asset_name}")
+    print(f"🔍 EVALUANDO PREDICTOR {asset}")
     print(f"{'='*70}")
     
-    target_col = f'TARGET_{asset_name}'
+    target_col = f'TARGET_{asset}'
+    y_true = test_df[target_col].values
     
-    # Evaluar cada modelo
-    for model_name in ['xgboost', 'lightgbm', 'catboost', 'stacking']:
-        if model_name in model.models:
-            try:
-                # Predicciones
-                predictions = model.predict(test_df, model_name=model_name)
-                y_true = test_df[target_col].values
-                
-                # Ajustar longitudes si es necesario
-                min_len = min(len(predictions), len(y_true))
-                predictions = predictions[-min_len:]
-                y_true = y_true[-min_len:]
-                
-                # Evaluar
-                full_model_name = f"{asset_name}_{model_name}"
-                results = evaluator.evaluate_regression(
-                    y_true, predictions, full_model_name
-                )
-                evaluator.print_regression_results(results)
-                
-            except Exception as e:
-                print(f"   ⚠️  Error evaluando {model_name}: {e}")
-
-
+    # Modelos a evaluar
+    if models_to_evaluate is None:
+        models_to_evaluate = list(model.models.keys())
+    
+    for model_name in models_to_evaluate:
+        if model_name not in model.models:
+            print(f"⚠️ Modelo '{model_name}' no disponible, saltando...")
+            continue
+        
+        try:
+            print(f"\n📊 Evaluando {model_name}...")
+            
+            # Predicción
+            y_pred = model.predict(test_df, model_name=model_name)
+            
+            # Ajustar longitudes si es necesario (modelos DL pueden tener padding)
+            min_len = min(len(y_true), len(y_pred))
+            y_true_adj = y_true[-min_len:]
+            y_pred_adj = y_pred[-min_len:]
+            
+            # Evaluar
+            results = evaluator.evaluate_regression(
+                y_true_adj,
+                y_pred_adj,
+                model_name=model_name,
+                asset=asset
+            )
+            
+            # Imprimir
+            evaluator.print_regression_results(results)
+            
+        except Exception as e:
+            print(f"❌ Error evaluando {model_name}: {e}")
+            import traceback
+            traceback.print_exc()
+            
 def evaluate_impact_classifier_complete(
     model,
     test_df: pd.DataFrame,

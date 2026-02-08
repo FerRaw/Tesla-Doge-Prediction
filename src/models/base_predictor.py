@@ -262,3 +262,4 @@ class BasePredictor(ABC):
                 f"version='{self.version}', "
                 f"trained={self.is_trained}, "
                 f"models={len(self.models)})")
+                

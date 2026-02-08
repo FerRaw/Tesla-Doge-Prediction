@@ -20,12 +20,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pandas as pd
 import numpy as np
+import keras
 from config.settings import settings
 from src.data.advanced_features import AdvancedFeatureEngineer
 from src.models.improved_predictors import (
     ImprovedDOGEPredictor,
     ImprovedTSLAPredictor,
-    ImpactClassifier
+    ImpactClassifier,
+    directional_mse_loss,
+
 )
 from src.models.evaluator import (
     ModelEvaluator,
@@ -222,7 +225,6 @@ def main():
         # PASO 3: Split
         # ==============================================================
         train_df, test_df = split_temporal(df_enhanced, train_ratio=args.split_ratio)
-        
         # ==============================================================
         # PASO 4: Entrenar o Cargar modelos
         # ==============================================================
@@ -251,21 +253,21 @@ def main():
             
             # --- DOGE ---
             print("\n1️⃣ DOGE PREDICTOR")
-            doge_model = ImprovedDOGEPredictor(version="v2_improved", use_advanced_models=False)
+            doge_model = ImprovedDOGEPredictor(version="v2_improved")
             doge_model.train(train_df, n_splits=settings.N_CV_SPLITS)
             doge_model.save(doge_path)
             
             # --- TSLA ---
             print("\n2️⃣ TSLA PREDICTOR")
-            tsla_model = ImprovedTSLAPredictor(version="v2_improved", use_advanced_models=False)
+            tsla_model = ImprovedTSLAPredictor(version="v2_improved")
             tsla_model.train(train_df, n_splits=settings.N_CV_SPLITS)
             tsla_model.save(tsla_path)
             
             # --- IMPACT CLASSIFIER ---
             print("\n3️⃣ IMPACT CLASSIFIER")
-            impact_model = ImpactClassifier(version="v2_improved")
-            impact_model.train(train_df, n_splits=settings.N_CV_SPLITS)
-            impact_model.save(impact_path)
+            # impact_model = ImpactClassifier(version="v2_improved")
+            # impact_model.train(train_df, n_splits=settings.N_CV_SPLITS)
+            # impact_model.save(impact_path)
         
         # ==============================================================
         # PASO 5: Evaluación
@@ -278,19 +280,46 @@ def main():
             evaluator = ModelEvaluator()
             
             # Evaluar predictores
-            evaluate_model_complete(doge_model, test_df, "DOGE", evaluator)
-            evaluate_model_complete(tsla_model, test_df, "TSLA", evaluator)
+            evaluate_model_complete(doge_model, test_df, "DOGE", evaluator, models_to_evaluate=None)
+            evaluate_model_complete(tsla_model, test_df, "TSLA", evaluator, models_to_evaluate=None)
             
             # Evaluar clasificador
-            evaluate_impact_classifier_complete(impact_model, test_df, evaluator)
+            evaluate_impact_classifier_complete(impact_model, test_df, evaluator, models_to_evaluate=None)
             
-            # Comparación
             print("\n" + "="*70)
             print("📋 COMPARACIÓN DE MODELOS DE REGRESIÓN")
             print("="*70)
-            comparison = evaluator.compare_models()
-            if len(comparison) > 0:
-                print(comparison.to_string(index=False))
+            
+            # Comparar por RMSE
+            comparison_rmse = evaluator.compare_models(metric='rmse')
+            if len(comparison_rmse) > 0:
+                print("\n🏆 Ranking por RMSE (menor = mejor):")
+                print(comparison_rmse.to_string(index=False))
+            
+            # Comparar por Directional Accuracy
+            comparison_dir = evaluator.compare_models(metric='dir_acc')
+            if len(comparison_dir) > 0:
+                print("\n🎯 Ranking por Directional Accuracy (mayor = mejor):")
+                print(comparison_dir.to_string(index=False))
+            
+            # Comparar por R²
+            comparison_r2 = evaluator.compare_models(metric='r2')
+            if len(comparison_r2) > 0:
+                print("\n📊 Ranking por R² (mayor = mejor):")
+                print(comparison_r2.to_string(index=False))
+            
+            # Mejor modelo por métrica
+            best_rmse = evaluator.get_best_model('rmse', minimize=True)
+            best_dir = evaluator.get_best_model('dir_acc', minimize=False)
+            best_r2 = evaluator.get_best_model('r2', minimize=False)
+            
+            print("\n" + "="*70)
+            print("🏅 MEJORES MODELOS POR MÉTRICA")
+            print("="*70)
+            print(f"   Mejor RMSE:              {best_rmse}")
+            print(f"   Mejor Dir. Accuracy:     {best_dir}")
+            print(f"   Mejor R²:                {best_r2}")
+            print("="*70)
         
         # ==============================================================
         # PASO 6: Backtesting
