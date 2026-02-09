@@ -10,6 +10,7 @@ Tiempo estimado: 10-15 minutos
 
 Uso:
     python scripts/02_improved_train_models.py --evaluate --backtesting
+    python scripts/02_improved_train_models.py --backtesting-only
 """
 
 import argparse
@@ -137,7 +138,7 @@ def run_backtesting(predictor, test_df, asset_name: str):
         actual_returns,
         threshold=0.005,
         max_position_size=0.5,
-        transaction_cost=0.0005
+        transaction_cost=0.0015
     )
     backtest_eval.print_backtest_results(results_conservative)
     
@@ -153,7 +154,7 @@ def run_backtesting(predictor, test_df, asset_name: str):
         actual_returns,
         threshold=0.001,
         max_position_size=1.0,
-        transaction_cost=0.0005
+        transaction_cost=0.0015
     )
     backtest_eval.print_backtest_results(results_aggressive)
     
@@ -169,7 +170,7 @@ def run_backtesting(predictor, test_df, asset_name: str):
         actual_returns,
         threshold=0.0025,
         max_position_size=0.75,
-        transaction_cost=0.0005
+        transaction_cost=0.0015
     )
     backtest_eval.print_backtest_results(results_moderate)
     
@@ -265,9 +266,9 @@ def main():
             
             # --- IMPACT CLASSIFIER ---
             print("\n3️⃣ IMPACT CLASSIFIER")
-            # impact_model = ImpactClassifier(version="v2_improved")
-            # impact_model.train(train_df, n_splits=settings.N_CV_SPLITS)
-            # impact_model.save(impact_path)
+            impact_model = ImpactClassifier(version="v2_improved")
+            impact_model.train(train_df, n_splits=settings.N_CV_SPLITS)
+            impact_model.save(impact_path)
         
         # ==============================================================
         # PASO 5: Evaluación

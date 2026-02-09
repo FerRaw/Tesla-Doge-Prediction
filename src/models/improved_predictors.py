@@ -749,12 +749,14 @@ class ImpactClassifier(BasePredictor):
         self.core_features = [
             'hour_sin', 'hour_cos', 'day_sin', 'day_cos',
             'sentiment_ensemble', 'relevance_score',
-            'mentions_tesla', 'mentions_doge'
+            'mentions_tesla', 'mentions_doge',
+            'sentiment_velocity', 'sentiment_acceleration', 'sentiment_weighted_avg'
         ]
         
         # Features de mercado (OPCIONALES - no usarlas en demo)
         self.market_features = [
             'doge_ret_1h', 'tsla_ret_1h',
+            'vol_regime_doge', 'vol_regime_tsla', 'momentum_divergence'
         ]
         
         # Pesos para post-processing heurístico
@@ -892,7 +894,7 @@ class ImpactClassifier(BasePredictor):
                 learning_rate=0.1,  # Aumentado
                 max_depth=5,
                 min_child_weight=1,  # Reducido
-                scale_pos_weight=3,  # BOOST clases positivas
+                sample_weight=[1, 5, 5, 10],  # BOOST clases positivas
                 subsample=0.8,
                 colsample_bytree=0.8,
                 random_state=settings.RANDOM_SEED,
